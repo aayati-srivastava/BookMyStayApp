@@ -1,83 +1,43 @@
-import java.io.*;
 import java.util.*;
 
 /**
  * Book My Stay App
  *
- * Use Case 12: Data Persistence & System Recovery
- * Version: 12.1
+ * Use Case 9: Error Handling & Validation
+ * Version: 9.1
  *
- * Demonstrates saving and restoring system state using serialization.
+ * Demonstrates validation using custom exceptions.
  *
  * @author Aayati
- * @version 12.1
+ * @version 9.1
  */
 
 public class BookMyStayApp {
 
-    /* ---------- RESERVATION ---------- */
+    /* ---------- CUSTOM EXCEPTION ---------- */
 
-    static class Reservation implements Serializable {
-        String reservationId;
-        String guestName;
-        String roomType;
-
-        Reservation(String reservationId, String guestName, String roomType) {
-            this.reservationId = reservationId;
-            this.guestName = guestName;
-            this.roomType = roomType;
+    static class InvalidBookingException extends Exception {
+        InvalidBookingException(String message) {
+            super(message);
         }
     }
 
-    /* ---------- SYSTEM STATE ---------- */
+    /* ---------- VALIDATOR ---------- */
 
-    static class SystemState implements Serializable {
-        HashMap<String, Integer> inventory;
-        List<Reservation> bookingHistory;
+    static class BookingValidator {
 
-        SystemState(HashMap<String, Integer> inventory, List<Reservation> bookingHistory) {
-            this.inventory = inventory;
-            this.bookingHistory = bookingHistory;
-        }
-    }
+        void validate(String roomType, Map<String, Integer> inventory)
+                throws InvalidBookingException {
 
-    /* ---------- PERSISTENCE SERVICE ---------- */
-
-    static class PersistenceService {
-
-        private static final String FILE_NAME = "system_state.ser";
-
-        // Save state to file
-        void save(SystemState state) {
-
-            try (ObjectOutputStream out =
-                         new ObjectOutputStream(new FileOutputStream(FILE_NAME))) {
-
-                out.writeObject(state);
-                System.out.println("System state saved successfully.");
-
-            } catch (IOException e) {
-                System.out.println("Error saving system state.");
-            }
-        }
-
-        // Load state from file
-        SystemState load() {
-
-            try (ObjectInputStream in =
-                         new ObjectInputStream(new FileInputStream(FILE_NAME))) {
-
-                SystemState state = (SystemState) in.readObject();
-                System.out.println("System state restored successfully.");
-                return state;
-
-            } catch (FileNotFoundException e) {
-                System.out.println("No previous data found. Starting fresh.");
-            } catch (Exception e) {
-                System.out.println("Error loading data. Starting with safe defaults.");
+            // Check if room type exists
+            if (!inventory.containsKey(roomType)) {
+                throw new InvalidBookingException("Invalid room type selected.");
             }
 
-            return null;
+            // Check availability
+            if (inventory.get(roomType) <= 0) {
+                throw new InvalidBookingException("No rooms available for selected type.");
+            }
         }
     }
 
@@ -87,45 +47,40 @@ public class BookMyStayApp {
 
         System.out.println("=================================");
         System.out.println("      Book My Stay Application   ");
-        System.out.println("      Hotel Booking System v12.1 ");
+        System.out.println("      Hotel Booking System v9.1  ");
         System.out.println("=================================");
 
-        PersistenceService persistence = new PersistenceService();
+        // Inventory setup
+        Map<String, Integer> inventory = new HashMap<>();
+        inventory.put("Single Room", 1);
+        inventory.put("Double Room", 0);
 
-        // Try loading previous state
-        SystemState state = persistence.load();
+        BookingValidator validator = new BookingValidator();
 
-        HashMap<String, Integer> inventory;
-        List<Reservation> history;
+        // Test cases (valid + invalid)
+        String[] requests = {"Single Room", "Double Room", "Suite"};
 
-        if (state == null) {
-            // Initialize fresh data
-            inventory = new HashMap<>();
-            inventory.put("Single Room", 2);
-            inventory.put("Double Room", 1);
+        for (String roomType : requests) {
 
-            history = new ArrayList<>();
+            System.out.println("\nRequesting: " + roomType);
 
-            history.add(new Reservation("RES101", "Alice", "Single Room"));
-            history.add(new Reservation("RES102", "Bob", "Double Room"));
+            try {
+                // Validate before allocation
+                validator.validate(roomType, inventory);
 
-        } else {
-            inventory = state.inventory;
-            history = state.bookingHistory;
+                // If valid → allocate
+                inventory.put(roomType, inventory.get(roomType) - 1);
+
+                System.out.println("Booking successful for " + roomType);
+
+            } catch (InvalidBookingException e) {
+
+                // Graceful error handling
+                System.out.println("Booking failed: " + e.getMessage());
+            }
         }
 
-        // Display current state
-        System.out.println("\nCurrent Inventory: " + inventory);
-
-        System.out.println("\nBooking History:");
-        for (Reservation r : history) {
-            System.out.println(r.reservationId + " | " + r.guestName + " | " + r.roomType);
-        }
-
-        // Save state before shutdown
-        SystemState newState = new SystemState(inventory, history);
-        persistence.save(newState);
-
-        System.out.println("\nSystem ready for safe shutdown and recovery.");
+        System.out.println("\nFinal Inventory: " + inventory);
+        System.out.println("\nSystem continues running safely.");
     }
 }
